@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS orders (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    buyer_id INT UNSIGNED NOT NULL,
+    restaurant_id INT UNSIGNED NOT NULL,
+    menu_id INT UNSIGNED NOT NULL,
+    nama_penerima VARCHAR(120) NOT NULL,
+    telepon VARCHAR(30) NOT NULL,
+    alamat TEXT NOT NULL,
+    catatan TEXT NULL,
+    jumlah INT UNSIGNED NOT NULL DEFAULT 1,
+    harga_satuan DECIMAL(12,2) NOT NULL,
+    total_harga DECIMAL(12,2) NOT NULL,
+    status ENUM('menunggu','diterima','diproses','dikirim','selesai','dibatalkan') NOT NULL DEFAULT 'menunggu',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_orders_buyer FOREIGN KEY (buyer_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_orders_restaurant FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE,
+    CONSTRAINT fk_orders_menu FOREIGN KEY (menu_id) REFERENCES restaurant_menus(id) ON DELETE CASCADE,
+    INDEX idx_orders_buyer (buyer_id),
+    INDEX idx_orders_restaurant (restaurant_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

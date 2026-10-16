@@ -1,0 +1,834 @@
+
+<?php
+require_once __DIR__ . '/config.php';
+
+// Helper untuk mengamankan output HTML.
+if (!function_exists('e')) {
+    function e($value) {
+        return htmlspecialchars(
+            (string) $value,
+            ENT_QUOTES,
+            'UTF-8'
+        );
+    }
+}
+
+// Pastikan pengguna sudah login.
+if (empty($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+
+if (($_SESSION['peran'] ?? '') !== 'pemilik') {
+    header('Location: pilih_peran.php');
+    exit;
+}
+
+$userId = (int) $_SESSION['user_id'];
+
+$error = '';
+$sukses = isset($_GET['sukses']);
+
+// Token untuk melindungi form dari CSRF.
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+/**
+ * Mengunggah foto profil toko.
+ * Format yang diperbolehkan: JPG, PNG, WEBP.
+ * Maksimal ukuran: 5 MB.
+ */
+function uploadFotoToko($field)
+{
+    if (
+        !isset($_FILES[$field]) ||
+        $_FILES[$field]['error'] === UPLOAD_ERR_NO_FILE
+    ) {
+        return null;
+    }
+
+    $file = $_FILES[$field];
+
+    if ($file['error'] !== UPLOAD_ERR_OK) {
+        throw new RuntimeException(
+            'Gagal mengunggah foto. Silakan coba kembali.'
+        );
+    }
+
+    if ($file['size'] > 5 * 1024 * 1024) {
+        throw new RuntimeException(
+            'Ukuran foto maksimal 5 MB.'
+        );
+    }
+
+    if (!is_uploaded_file($file['tmp_name'])) {
+        throw new RuntimeException(
+            'Berkas foto tidak valid.'
+        );
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = $finfo->file($file['tmp_name']);
+
+    $format = [
+        'image/jpeg' => 'jpg',
+        'image/png'  => 'png',
+        'image/webp' => 'webp'
+    ];
+
+    if (!isset($format[$mime])) {
+        throw new RuntimeException(
+            'Gunakan foto berformat JPG, PNG, atau WEBP.'
+        );
+    }
+
+    $direktori = __DIR__ . '/uploads';
+
+    if (
+        !is_dir($direktori) &&
+        !mkdir($direktori, 0755, true) &&
+        !is_dir($direktori)
+    ) {
+        throw new RuntimeException(
+            'Folder uploads gagal dibuat.'
+        );
+    }
+
+    $namaFile = 'toko_' .
+        bin2hex(random_bytes(16)) .
+        '.' . $format[$mime];
+
+    $tujuan = $direktori . '/' . $namaFile;
+
+    if (!move_uploaded_file($file['tmp_name'], $tujuan)) {
+        throw new RuntimeException(
+            'Foto gagal disimpan ke folder uploads.'
+        );
+    }
+
+    return 'uploads/' . $namaFile;
+}
+
+// Ambil profil toko milik pengguna yang sedang login.
+$stmt = $pdo->prepare("
+    SELECT id, owner_id, nama, alamat, deskripsi, foto_profil
+    FROM restaurants
+    WHERE owner_id = ?
+    LIMIT 1
+");
+$stmt->execute([$userId]);
+
+$toko = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+// Proses penyimpanan profil toko.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        $token = $_POST['csrf_token'] ?? '';
+
+        if (
+            !is_string($token) ||
+            !hash_equals($_SESSION['csrf_token'], $token)
+        ) {
+            throw new RuntimeException(
+                'Sesi formulir tidak valid. Muat ulang halaman.'
+            );
+        }
+
+        $nama = trim($_POST['nama'] ?? '');
+        $alamat = trim($_POST['alamat'] ?? '');
+        $deskripsi = trim($_POST['deskripsi'] ?? '');
+
+        if ($nama === '' || $alamat === '') {
+            throw new RuntimeException(
+                'Nama toko dan alamat wajib diisi.'
+            );
+        }
+
+        if (mb_strlen($nama) > 150) {
+            throw new RuntimeException(
+                'Nama toko maksimal 150 karakter.'
+            );
+        }
+
+        if (mb_strlen($alamat) > 255) {
+            throw new RuntimeException(
+                'Alamat maksimal 255 karakter.'
+            );
+        }
+
+        $fotoBaru = uploadFotoToko('foto_profil');
+
+        if ($toko) {
+            if ($fotoBaru !== null) {
+                $stmt = $pdo->prepare("
+                    UPDATE restaurants
+                    SET nama = ?,
+                        alamat = ?,
+                        deskripsi = ?,
+                        foto_profil = ?
+                    WHERE owner_id = ?
+                ");
+
+                $stmt->execute([
+                    $nama,
+                    $alamat,
+                    $deskripsi,
+                    $fotoBaru,
+                    $userId
+                ]);
+            } else {
+                $stmt = $pdo->prepare("
+                    UPDATE restaurants
+                    SET nama = ?,
+                        alamat = ?,
+                        deskripsi = ?
+                    WHERE owner_id = ?
+                ");
+
+                $stmt->execute([
+                    $nama,
+                    $alamat,
+                    $deskripsi,
+                    $userId
+                ]);
+            }
+        } else {
+            $stmt = $pdo->prepare("
+                INSERT INTO restaurants
+                    (owner_id, nama, alamat, deskripsi, foto_profil)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+
+            $stmt->execute([
+                $userId,
+                $nama,
+                $alamat,
+                $deskripsi,
+                $fotoBaru
+            ]);
+        }
+
+        // Regenerasi token setelah berhasil menyimpan.
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+
+        header('Location: profil_penjual.php?sukses=1');
+        exit;
+
+    } catch (Throwable $ex) {
+        // Catat kesalahan untuk pemeriksaan di log server.
+        error_log(
+            'Kesalahan profil toko: ' . $ex->getMessage()
+        );
+
+        // Tampilkan pesan validasi yang aman kepada pengguna.
+        if ($ex instanceof RuntimeException) {
+            $error = $ex->getMessage();
+        } else {
+            $error = 'Profil toko gagal disimpan. Periksa database dan coba kembali.';
+        }
+    }
+
+    // Ambil ulang profil setelah proses POST.
+    $stmt = $pdo->prepare("
+        SELECT id, owner_id, nama, alamat, deskripsi, foto_profil
+        FROM restaurants
+        WHERE owner_id = ?
+        LIMIT 1
+    ");
+    $stmt->execute([$userId]);
+    $toko = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+// Hitung jumlah menu dan pesanan.
+$jumlahMenu = 0;
+$jumlahMenunggu = 0;
+$jumlahDiterima = 0;
+
+if ($toko) {
+    $restaurantId = (int) $toko['id'];
+
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*)
+        FROM restaurant_menus
+        WHERE restaurant_id = ?
+    ");
+    $stmt->execute([$restaurantId]);
+
+    $jumlahMenu = (int) $stmt->fetchColumn();
+
+    $stmt = $pdo->prepare("
+        SELECT
+            COALESCE(
+                SUM(CASE
+                    WHEN status = 'menunggu' THEN 1
+                    ELSE 0
+                END),
+                0
+            ) AS menunggu,
+            COALESCE(
+                SUM(CASE
+                    WHEN status = 'diterima' THEN 1
+                    ELSE 0
+                END),
+                0
+            ) AS diterima
+        FROM orders
+        WHERE restaurant_id = ?
+    ");
+    $stmt->execute([$restaurantId]);
+
+    $pesanan = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    $jumlahMenunggu = (int) $pesanan['menunggu'];
+    $jumlahDiterima = (int) $pesanan['diterima'];
+}
+
+$namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
+?>
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Profil Penjual - Mencari Makan</title>
+
+    <link rel="stylesheet" href="style.css">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f4f7f5;
+            color: #24312e;
+            font-family: Arial, sans-serif;
+        }
+
+        header {
+            background: #166534;
+            color: white;
+            padding: 22px max(18px, calc((100% - 1100px) / 2));
+        }
+
+        header h1 {
+            margin: 0 0 8px;
+        }
+
+        header p {
+            line-height: 1.6;
+        }
+
+        nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 12px;
+            margin-top: 16px;
+            border: 1px solid #ffffff55;
+            border-radius: 12px;
+            background: #ffffff12;
+        }
+
+        nav a {
+            display: inline-block;
+            padding: 10px 12px;
+            background: white;
+            color: #166534;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+
+        nav a:hover {
+            background: #dcfce7;
+        }
+
+        nav a.active {
+            background: #bbf7d0;
+        }
+
+        nav a.logout {
+            color: #b91c1c;
+        }
+
+        main {
+            max-width: 1100px;
+            margin: 26px auto;
+            padding: 0 16px;
+        }
+
+        .panel {
+            background: white;
+            border: 1px solid #e1e9e3;
+            border-radius: 15px;
+            padding: 22px;
+            margin-bottom: 22px;
+            box-shadow: 0 5px 18px #00000006;
+        }
+
+        .profile {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            padding: 20px;
+            margin-bottom: 22px;
+            border-radius: 15px;
+            background: linear-gradient(120deg, #14532d, #4d7c0f);
+            color: white;
+            overflow-wrap: anywhere;
+        }
+
+        .avatar {
+            width: 100px;
+            height: 100px;
+            flex: 0 0 100px;
+            border: 3px solid white;
+            border-radius: 14px;
+            object-fit: cover;
+            background: #e5e7eb;
+        }
+
+        .profile h2 {
+            margin: 0 0 10px;
+        }
+
+        .profile p {
+            margin: 7px 0;
+            line-height: 1.5;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(
+                auto-fit,
+                minmax(190px, 1fr)
+            );
+            gap: 15px;
+            margin-top: 18px;
+        }
+
+        .stat-card {
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+            min-width: 0;
+            padding: 19px;
+            border: 1px solid #dce8df;
+            border-radius: 12px;
+            background: #f8faf8;
+            color: #166534;
+            text-decoration: none;
+            transition: .2s;
+        }
+
+        .stat-card:hover {
+            background: #dcfce7;
+            transform: translateY(-2px);
+        }
+
+        .stat-card .emoji {
+            font-size: 27px;
+        }
+
+        .stat-card strong {
+            font-size: 29px;
+        }
+
+        .stat-card small {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .field {
+            display: block;
+            margin-top: 16px;
+            font-weight: bold;
+        }
+
+        input,
+        textarea {
+            width: 100%;
+            margin-top: 7px;
+            padding: 12px;
+            border: 1px solid #cbd5ce;
+            border-radius: 8px;
+            font: inherit;
+            background: white;
+        }
+
+        input:focus,
+        textarea:focus {
+            outline: 2px solid #86efac;
+            border-color: #15803d;
+        }
+
+        textarea {
+            min-height: 95px;
+            resize: vertical;
+        }
+
+        input[type="file"] {
+            padding: 10px;
+        }
+
+        .hint {
+            color: #64756f;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .btn,
+        button {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 12px 16px;
+            border: none;
+            border-radius: 8px;
+            background: #15803d;
+            color: white;
+            font: inherit;
+            font-weight: bold;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .btn:hover,
+        button:hover {
+            background: #166534;
+        }
+
+        .btn.secondary {
+            background: #e5eee8;
+            color: #24554a;
+        }
+
+        .btn.secondary:hover {
+            background: #d1e2da;
+        }
+
+        .message {
+            padding: 13px 15px;
+            margin-bottom: 18px;
+            border-radius: 9px;
+            line-height: 1.6;
+        }
+
+        .ok {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .err {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .empty {
+            padding: 18px;
+            border-radius: 10px;
+            background: #f8faf8;
+            line-height: 1.7;
+        }
+
+        footer {
+            padding: 25px 16px;
+            text-align: center;
+            color: #64756f;
+        }
+
+        @media (max-width: 600px) {
+            header {
+                padding: 20px 16px;
+            }
+
+            header h1 {
+                font-size: 24px;
+            }
+
+            nav {
+                gap: 7px;
+                padding: 9px;
+            }
+
+            nav a {
+                padding: 9px 10px;
+                font-size: 12px;
+            }
+
+            .panel {
+                padding: 17px;
+            }
+
+            .profile {
+                align-items: flex-start;
+                gap: 12px;
+                padding: 14px;
+            }
+
+            .avatar {
+                width: 68px;
+                height: 68px;
+                flex-basis: 68px;
+            }
+
+            .profile h2 {
+                font-size: 18px;
+            }
+
+            .profile p {
+                font-size: 13px;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .btn,
+            button {
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>🏪 Profil Penjual</h1>
+
+    <p>
+        Halo, <?= e($namaPemilik) ?>!
+        Kelola toko dan pantau pesanan pelangganmu.
+    </p>
+
+    <nav>
+        <a href="index.php">🏠 Dashboard</a>
+
+        <a class="active" href="profil_penjual.php">
+            🏪 Profil Toko
+        </a>
+
+        <a href="kelola_menu.php">
+            🍽️ Kelola Menu
+        </a>
+
+        <a href="chat.php">
+            💬 Chat
+        </a>
+
+        <a href="pesanan_penjual.php">
+            📦 Pesanan Masuk (<?= $jumlahMenunggu ?>)
+        </a>
+
+        <a href="pesanan_penjual.php?status=diterima">
+            ✅ Pesanan Diterima (<?= $jumlahDiterima ?>)
+        </a>
+
+        <a href="pilih_peran.php">
+            🔄 Ganti Peran
+        </a>
+
+        <a class="logout"
+           href="logout.php"
+           onclick="return confirm('Yakin ingin keluar dari akun?')">
+            🚪 Keluar
+        </a>
+    </nav>
+</header>
+
+<main>
+
+    <?php if ($sukses): ?>
+        <div class="message ok">
+            ✅ Profil toko berhasil disimpan.
+        </div>
+    <?php endif; ?>
+
+    <?php if ($error !== ''): ?>
+        <div class="message err">
+            <?= e($error) ?>
+        </div>
+    <?php endif; ?>
+
+    <!-- RINGKASAN DASHBOARD -->
+    <section class="panel">
+        <h2>📊 Dashboard Penjual</h2>
+
+        <p>
+            Pantau menu dan pesanan toko melalui ringkasan berikut.
+        </p>
+
+        <div class="stats">
+            <a class="stat-card" href="kelola_menu.php">
+                <span class="emoji">🍽️</span>
+                <strong><?= $jumlahMenu ?></strong>
+                <small>Menu Terdaftar</small>
+            </a>
+
+            <a class="stat-card" href="pesanan_penjual.php">
+                <span class="emoji">📦</span>
+                <strong><?= $jumlahMenunggu ?></strong>
+                <small>Pesanan Menunggu</small>
+            </a>
+
+            <a class="stat-card"
+               href="pesanan_penjual.php?status=diterima">
+                <span class="emoji">✅</span>
+                <strong><?= $jumlahDiterima ?></strong>
+                <small>Pesanan Diterima</small>
+            </a>
+        </div>
+
+        <p>
+            <a class="btn" href="index.php">
+                🏠 Kembali ke Dashboard Utama
+            </a>
+
+            <a class="btn secondary" href="pesanan_penjual.php">
+                📦 Kelola Pesanan
+            </a>
+        </p>
+    </section>
+
+    <!-- PROFIL TOKO -->
+    <section class="profile">
+        <?php if (!empty($toko['foto_profil'])): ?>
+            <img
+                class="avatar"
+                src="<?= e($toko['foto_profil']) ?>"
+                alt="Foto toko"
+            >
+        <?php else: ?>
+            <div class="avatar"
+                 style="display:grid;place-items:center;font-size:42px">
+                🏪
+            </div>
+        <?php endif; ?>
+
+        <div>
+            <h2><?= e($toko['nama'] ?? 'Nama Toko Kamu') ?></h2>
+
+            <p>👤 <?= e($namaPemilik) ?></p>
+
+            <p>
+                📍 <?= e($toko['alamat'] ?? 'Alamat belum diisi') ?>
+            </p>
+
+            <p>
+                <?= e($toko['deskripsi'] ?? 'Tambahkan deskripsi toko.') ?>
+            </p>
+        </div>
+    </section>
+
+    <!-- FORM PROFIL -->
+    <section class="panel">
+        <h2>
+            <?= $toko ? '✏️ Edit Profil Toko' : '🏪 Buat Profil Toko' ?>
+        </h2>
+
+        <?php if (!$toko): ?>
+            <div class="empty">
+                Kamu belum memiliki profil toko.
+                Isi formulir di bawah agar tokomu dapat ditampilkan
+                kepada pelanggan.
+            </div>
+        <?php endif; ?>
+
+        <form method="post"
+              action="profil_penjual.php"
+              enctype="multipart/form-data">
+
+            <input
+                type="hidden"
+                name="csrf_token"
+                value="<?= e($_SESSION['csrf_token']) ?>"
+            >
+
+            <label class="field" for="nama">
+                Nama Toko *
+            </label>
+
+            <input
+                id="nama"
+                type="text"
+                name="nama"
+                required
+                maxlength="150"
+                value="<?= e(
+                    $_SERVER['REQUEST_METHOD'] === 'POST'
+                        ? ($_POST['nama'] ?? '')
+                        : ($toko['nama'] ?? '')
+                ) ?>"
+                placeholder="Contoh: Rumah Makan Minang"
+            >
+
+            <label class="field" for="alamat">
+                Alamat Lengkap *
+            </label>
+
+            <textarea
+                id="alamat"
+                name="alamat"
+                required
+                maxlength="255"
+                placeholder="Jalan, kelurahan, kecamatan, kota"
+            ><?= e(
+                $_SERVER['REQUEST_METHOD'] === 'POST'
+                    ? ($_POST['alamat'] ?? '')
+                    : ($toko['alamat'] ?? '')
+            ) ?></textarea>
+
+            <label class="field" for="deskripsi">
+                Deskripsi Toko
+            </label>
+
+            <textarea
+                id="deskripsi"
+                name="deskripsi"
+                placeholder="Ceritakan menu dan keunggulan tokomu"
+            ><?= e(
+                $_SERVER['REQUEST_METHOD'] === 'POST'
+                    ? ($_POST['deskripsi'] ?? '')
+                    : ($toko['deskripsi'] ?? '')
+            ) ?></textarea>
+
+            <label class="field" for="foto_profil">
+                Foto Profil Toko
+            </label>
+
+            <input
+                id="foto_profil"
+                type="file"
+                name="foto_profil"
+                accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+            >
+
+            <p class="hint">
+                Format JPG, PNG, atau WEBP. Maksimal 5 MB.
+                Kosongkan jika ingin mempertahankan foto lama.
+            </p>
+
+            <button type="submit">
+                💾 Simpan Profil Toko
+            </button>
+
+            <a class="btn secondary" href="index.php">
+                Batal
+            </a>
+        </form>
+    </section>
+
+</main>
+
+<footer>
+    © 2026 Mencari Makan
+</footer>
+
+</body>
+</html>

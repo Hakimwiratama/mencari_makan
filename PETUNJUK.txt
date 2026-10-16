@@ -1,0 +1,32 @@
+FITUR NOTIFIKASI PESANAN PENJUAL DAN KONFIRMASI PEMBELI
+
+Isi paket:
+- pesanan_penjual.php: halaman pesanan masuk untuk akun berperan pemilik.
+- aksi_pesanan_penjual.php: aksi terima/tolak pesanan milik toko yang sedang login.
+- pesanan_saya.php: halaman pembeli untuk melihat status, alasan penolakan, dan menekan OK.
+- pembaruan_orders.sql: menambahkan kolom alasan_penolakan dan konfirmasi_pembeli.
+
+CARA MEMASANG:
+1. Backup folder C:\xampp\htdocs\mencari_makan terlebih dahulu.
+2. Salin ketiga file PHP ke C:\xampp\htdocs\mencari_makan\.
+3. Jika pesanan_saya.php sudah ada, simpan salinan lama sebelum menggantinya.
+4. Buka http://localhost/phpmyadmin, pilih database mencari_makan, buka tab SQL.
+5. Jalankan isi pembaruan_orders.sql. Jangan jalankan ulang jika kolom tersebut sudah ada.
+6. Login sebagai akun penjual (session peran harus bernilai 'pemilik'), lalu buka:
+   http://localhost/mencari_makan/pesanan_penjual.php
+7. Pembeli login sebagai akun pencari (session peran harus bernilai 'pencari'), lalu buka:
+   http://localhost/mencari_makan/pesanan_saya.php
+
+ALUR:
+- Pesanan baru berstatus menunggu.
+- Penjual dapat klik Terima Pesanan, status menjadi diterima.
+- Atau penjual mengisi alasan dan klik Tolak Pesanan, status menjadi ditolak.
+- Pembeli melihat alasan pada halaman Pesanan Saya dan klik OK, saya mengerti.
+- Status konfirmasi tersebut terlihat oleh penjual di halaman pesanan masuk.
+
+CATATAN:
+- Paket mengasumsikan config.php menyediakan PDO bernama $pdo.
+- Paket mengasumsikan helpers.php menyediakan require_login().
+- Paket mengasumsikan session user_id dan peran dengan nilai 'pemilik'/'pencari'.
+- Paket mengasumsikan tabel restaurants memakai owner_id dan tabel orders/restaurant_menus/users sesuai skema fitur pembelian sebelumnya.
+- Ini menyimpan status pesanan dalam database, bukan notifikasi push realtime. Pembeli melihat pembaruan saat membuka/memuat ulang halaman.
