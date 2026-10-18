@@ -1,47 +1,200 @@
-```html
+
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mencari Makan</title>
-    <link rel="stylesheet" href="style.css">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f4f7f5;
+            color: #24352c;
+        }
+
+        header {
+            background: #176b45;
+            color: white;
+            padding: 22px 6%;
+        }
+
+        header h1 {
+            margin: 0 0 8px;
+        }
+
+        header p {
+            margin: 0;
+        }
+
+        nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 15px 6%;
+            background: white;
+            box-shadow: 0 2px 5px #00000012;
+        }
+
+        nav a {
+            color: #176b45;
+            text-decoration: none;
+            padding: 10px 13px;
+            border-radius: 7px;
+            font-weight: bold;
+        }
+
+        nav a:hover {
+            background: #e3f3e9;
+        }
+
+        main {
+            max-width: 1100px;
+            margin: 30px auto;
+            padding: 0 18px;
+        }
+
+        .selamat-datang {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+        }
+
+        .menu {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 18px;
+        }
+
+        .kartu {
+            background: white;
+            padding: 22px;
+            border-radius: 12px;
+            box-shadow: 0 3px 10px #0000000b;
+        }
+
+        .kartu h3 {
+            margin-top: 0;
+        }
+
+        .tombol {
+            display: inline-block;
+            background: #176b45;
+            color: white;
+            text-decoration: none;
+            padding: 11px 15px;
+            border-radius: 7px;
+            margin-top: 8px;
+        }
+
+        .tombol:hover {
+            background: #105334;
+        }
+
+        .login {
+            background: #e9f5ed;
+            border: 1px solid #c7e6d2;
+        }
+
+        footer {
+            text-align: center;
+            padding: 25px;
+            color: #637168;
+        }
+    </style>
 </head>
 <body>
 
-    <header>
-        <h1>🍽️ Mencari Makan</h1>
-        <p>Temukan tempat makan favorit di sekitarmu!</p>
-    </header>
+<header>
+    <h1>🍽️ Mencari Makan</h1>
+    <p>Temukan makanan dan kelola pesananmu dengan mudah.</p>
+</header>
 
-    <main>
-        <section class="pencarian">
-            <h2>Cari Tempat Makan</h2>
+<nav aria-label="Navigasi utama">
+    <a href="login.php">Login</a>
+    <a href="verify.php">Verifikasi</a>
+    <a href="pilih_peran.php">Pilih Peran</a>
+    <a href="index.php">Home</a>
+    <a href="pesanan_saya.php">Pesanan Saya</a>
+    <a href="chat.php">Chat</a>
+    <a href="profil_penjual.php">Profil Penjual</a>
+    <a href="pesanan_penjual.php">Pesanan Penjual</a>
+    <a href="pesanan_penjual.php?status=diterima">Pesanan Diterima</a>
+    <a href="kelola_menu.php">Kelola Menu</a>
+    <a href="logout.php">Keluar</a>
+</nav>
 
-            <form id="formPencarian">
-                <input
-                    type="text"
-                    id="kataKunci"
-                    placeholder="Cari nasi goreng, sate, rendang..."
-                    autocomplete="off"
-                >
-                <button type="submit">Cari</button>
-            </form>
-        </section>
+<main>
+    <section class="selamat-datang">
+        <h2>Selamat Datang di Mencari Makan!</h2>
+        <p>
+            Cari tempat makan, lihat informasi penjual,
+            pesan makanan, dan kelola tokomu.
+        </p>
+        <a class="tombol" href="login.php">Masuk ke Akun</a>
+        <a class="tombol" href="pilih_peran.php">Pilih Peran</a>
+    </section>
 
-        <section class="daftar">
-            <h2>Daftar Tempat Makan</h2>
-            <div id="hasil">
-                <p>Ketik nama makanan untuk mulai mencari.</p>
-            </div>
-        </section>
-    </main>
+    <h2>Fitur Pembeli</h2>
+    <section class="menu">
+        <article class="kartu">
+            <h3>🔎 Cari Makanan</h3>
+            <p>Buka halaman utama untuk mencari makanan.</p>
+            <a class="tombol" href="index.php">Buka Home</a>
+        </article>
 
-    <footer>
-        <p>© 2026 Mencari Makan</p>
-    </footer>
+        <article class="kartu">
+            <h3>🛍️ Pesanan Saya</h3>
+            <p>Lihat pesanan yang sudah kamu buat.</p>
+            <a class="tombol" href="pesanan_saya.php">Lihat Pesanan</a>
+        </article>
 
-    <script src="script.js"></script>
+        <article class="kartu">
+            <h3>💬 Chat</h3>
+            <p>Buka halaman percakapan dengan pengguna lain.</p>
+            <a class="tombol" href="chat.php">Buka Chat</a>
+        </article>
+
+        <article class="kartu">
+            <h3>🏪 Profil Penjual</h3>
+            <p>Lihat profil toko dan informasi penjual.</p>
+            <a class="tombol" href="profil_penjual.php">Lihat Profil</a>
+        </article>
+    </section>
+
+    <h2>Fitur Pemilik Toko</h2>
+    <section class="menu">
+        <article class="kartu">
+            <h3>🍜 Kelola Menu</h3>
+            <p>Buka halaman pengelolaan menu makanan.</p>
+            <a class="tombol" href="kelola_menu.php">Kelola Menu</a>
+        </article>
+
+        <article class="kartu">
+            <h3>📦 Pesanan Masuk</h3>
+            <p>Periksa pesanan yang masuk ke tokomu.</p>
+            <a class="tombol" href="pesanan_penjual.php">Lihat Pesanan</a>
+        </article>
+
+        <article class="kartu">
+            <h3>✅ Pesanan Diterima</h3>
+            <p>Lihat pesanan dengan status diterima.</p>
+            <a class="tombol"
+               href="pesanan_penjual.php?status=diterima">
+               Lihat Pesanan Diterima
+            </a>
+        </article>
+    </section>
+</main>
+
+<footer>
+    <p>© 2026 Mencari Makan</p>
+</footer>
+
 </body>
 </html>
-```
