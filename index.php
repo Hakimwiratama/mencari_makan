@@ -3,6 +3,7 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/helpers.php';
 
 require_login();
+$maptilerApiKey = getenv('MAPTILER_API_KEY') ?: '';
 
 $userId = (int) ($_SESSION['user_id'] ?? 0);
 
@@ -133,6 +134,24 @@ else {
     $stmt->execute($params);
     $shops = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
+
+$shopsWithLocations = array_values(array_filter(
+    array_map(static function (array $shop): array {
+        return [
+            'id' => (int) $shop['id'],
+            'name' => (string) $shop['nama'],
+            'address' => (string) $shop['alamat'],
+            'latitude' => $shop['latitude'] === null
+                ? null
+                : (float) $shop['latitude'],
+            'longitude' => $shop['longitude'] === null
+                ? null
+                : (float) $shop['longitude']
+        ];
+    }, $shops),
+    static fn (array $shop): bool =>
+        $shop['latitude'] !== null && $shop['longitude'] !== null
+));
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -141,6 +160,10 @@ else {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Mencari Makan</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="">
 
     <style>
         * {
@@ -260,6 +283,21 @@ else {
             align-items: center;
             flex-wrap: wrap;
             gap: 10px;
+        }
+
+        .map-toggle {
+            display: block;
+            width: 100%;
+            padding: 12px 16px;
+            text-align: left;
+        }
+
+        .map-content[hidden] {
+            display: none;
+        }
+
+        .map-content .panel {
+            margin-top: 12px;
         }
 
         .grid {
@@ -410,6 +448,10 @@ else {
                 text-align: center;
             }
 
+            .directions-panel {
+                padding: 14px;
+            }
+
             .grid {
                 grid-template-columns: 1fr;
             }
@@ -551,6 +593,46 @@ else {
         </form>
     </section>
 
+    <section class="directions-panel">
+        <button type="button" class="map-toggle" data-map-toggle
+                aria-expanded="false" aria-controls="shop-map-content">
+            🗺️ Lihat peta toko terdekat
+        </button>
+        <div id="shop-map-content" class="map-content" data-map-content hidden>
+            <section class="panel">
+                <h2>🗺️ Peta Toko Terdekat</h2>
+                <p>
+                    Izinkan akses lokasi untuk melihat posisi kamu dan membuat rute
+                    berkendara ke toko. Pilih pin toko lain untuk mengganti tujuan.
+                </p>
+                <div class="map-actions">
+                    <button type="button" data-locate-user="shop-map">
+                        📍 Temukan lokasi saya &amp; rute terdekat
+                    </button>
+                    <span data-map-status role="status" aria-live="polite">
+                        <?php if (!$shopsWithLocations): ?>
+                            Belum ada toko yang menambahkan titik lokasi.
+                        <?php else: ?>
+                            Tekan tombol untuk mencari lokasi dan rute ke toko terdekat.
+                        <?php endif; ?>
+                    </span>
+                </div>
+                <div id="shop-map" class="location-map"
+                     data-shops-map
+                     data-map-lazy
+                     data-maptiler-key="<?= e($maptilerApiKey) ?>"></div>
+                <p class="hint">
+                    Peta © OpenStreetMap. Rute mengikuti jalan yang tersedia;
+                    jika titik berada jauh dari jalan, rute dimulai dari jalan terdekat.
+                </p>
+            </section>
+        </div>
+        <script type="application/json" id="shop-map-data"><?= json_encode(
+            $shopsWithLocations,
+            JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+        ) ?></script>
+    </section>
+
     <h2>🍜 Daftar Toko</h2>
 
     <?php if (!$shops): ?>
@@ -559,34 +641,34 @@ else {
             <p>Coba kata kunci lain atau periksa kembali nanti.</p>
         </section>
     <?php else: ?>
-        <section class="grid">
+        <section class="store-catalog">
             <?php foreach ($shops as $s): ?>
-                <article class="card">
-                    <?php if (!empty($s['foto_profil'])): ?>
-                        <img
-                            src="<?= e($s['foto_profil']) ?>"
-                            alt="Foto <?= e($s['nama']) ?>"
-                            loading="lazy"
-                        >
-                    <?php else: ?>
-                        <div style="
-                            height:180px;
-                            display:grid;
-                            place-items:center;
-                            background:#e5eeea;
-                            font-size:55px;
-                        ">🏪</div>
-                    <?php endif; ?>
+                <article class="store-product">
+                    <div class="store-product-image">
+                        <?php if (!empty($s['foto_profil'])): ?>
+                            <img
+                                src="<?= e($s['foto_profil']) ?>"
+                                alt="Foto <?= e($s['nama']) ?>"
+                                loading="lazy"
+                            >
+                        <?php else: ?>
+                            <span aria-hidden="true">🏪</span>
+                        <?php endif; ?>
+                    </div>
 
-                    <div class="card-body">
+                    <div class="store-product-body">
                         <h3><?= e($s['nama']) ?></h3>
-                        <p>📍 <?= e($s['alamat'] ?? '') ?></p>
-                        <p><?= e($s['deskripsi'] ?? '') ?></p>
-
-                        <p class="muted">
-                            <?= (int) $s['jumlah_menu'] ?> menu tersedia
+                        <p class="store-product-address">
+                            📍 <?= e($s['alamat'] ?? '') ?>
                         </p>
-
+                        <?php if (trim((string) ($s['deskripsi'] ?? '')) !== ''): ?>
+                            <p class="store-product-description">
+                                <?= e($s['deskripsi']) ?>
+                            </p>
+                        <?php endif; ?>
+                        <span class="store-product-count">
+                            <?= (int) $s['jumlah_menu'] ?> menu tersedia
+                        </span>
                         <a class="btn"
                            href="detail_toko.php?id=<?= (int) $s['id'] ?>">
                             Lihat Toko &amp; Menu
@@ -601,5 +683,31 @@ else {
 </main>
 
 <footer>© 2026 Mencari Makan</footer>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+<script src="maps.js"></script>
+<script>
+(() => {
+    const toggle = document.querySelector('[data-map-toggle]');
+    const content = document.querySelector('[data-map-content]');
+    const map = document.querySelector('[data-shops-map]');
+
+    toggle?.addEventListener('click', () => {
+        const isOpening = content.hidden;
+        content.hidden = !isOpening;
+        toggle.setAttribute('aria-expanded', String(isOpening));
+        toggle.textContent = isOpening
+            ? '✕ Tutup peta toko'
+            : '🗺️ Lihat peta toko terdekat';
+
+        if (isOpening) {
+            map.dataset.mapOpen = 'true';
+            window.initializeShopLocationMap?.(map);
+            content.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    });
+})();
+</script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 
 <?php
 require_once __DIR__ . '/config.php';
+$maptilerApiKey = getenv('MAPTILER_API_KEY') ?: '';
 
 // Helper untuk mengamankan output HTML.
 if (!function_exists('e')) {
@@ -28,6 +29,140 @@ $userId = (int) $_SESSION['user_id'];
 
 $error = '';
 $sukses = isset($_GET['sukses']);
+$wilayahError = '';
+$provinceById = [];
+$regionById = [];
+$regionId = '';
+$selectedProvinceId = '';
+$selectedIsland = '';
+$wilayahByIsland = [
+    'Sumatera' => [
+        'Aceh',
+        'Sumatera Utara',
+        'Sumatera Barat',
+        'Riau',
+        'Jambi',
+        'Sumatera Selatan',
+        'Bengkulu',
+        'Lampung',
+        'Kepulauan Bangka Belitung',
+        'Kepulauan Riau'
+    ],
+    'Jawa' => [
+        'Daerah Khusus Ibukota Jakarta',
+        'Jawa Barat',
+        'Jawa Tengah',
+        'Daerah Istimewa Yogyakarta',
+        'Jawa Timur',
+        'Banten'
+    ],
+    'Bali dan Nusa Tenggara' => [
+        'Bali',
+        'Nusa Tenggara Barat',
+        'Nusa Tenggara Timur'
+    ],
+    'Kalimantan' => [
+        'Kalimantan Barat',
+        'Kalimantan Tengah',
+        'Kalimantan Selatan',
+        'Kalimantan Timur',
+        'Kalimantan Utara'
+    ],
+    'Sulawesi' => [
+        'Sulawesi Utara',
+        'Sulawesi Tengah',
+        'Sulawesi Selatan',
+        'Sulawesi Tenggara',
+        'Gorontalo',
+        'Sulawesi Barat'
+    ],
+    'Maluku' => [
+        'Maluku',
+        'Maluku Utara'
+    ],
+    'Papua' => [
+        'Papua',
+        'Papua Barat',
+        'Papua Selatan',
+        'Papua Tengah',
+        'Papua Pegunungan',
+        'Papua Barat Daya'
+    ]
+];
+
+try {
+    $wilayahJson = file_get_contents(__DIR__ . '/wilayah-indonesia.json');
+    if ($wilayahJson === false) {
+        throw new RuntimeException('File data wilayah tidak dapat dibaca.');
+    }
+
+    $wilayahData = json_decode($wilayahJson, true, 512, JSON_THROW_ON_ERROR);
+    if (
+        !isset($wilayahData['provinces'], $wilayahData['regencies']) ||
+        !is_array($wilayahData['provinces']) ||
+        !is_array($wilayahData['regencies'])
+    ) {
+        throw new RuntimeException('Format data wilayah tidak valid.');
+    }
+
+    foreach ($wilayahData['regencies'] as $region) {
+        if (
+            !isset(
+                $region['province_id'],
+                $region['province_name'],
+                $region['id'],
+                $region['name'],
+                $region['latitude'],
+                $region['longitude']
+            )
+        ) {
+            continue;
+        }
+        $regionById[(string) $region['id']] = $region;
+    }
+
+    foreach ($wilayahData['provinces'] as $province) {
+        $provinceById[(string) $province['id']] = $province;
+    }
+
+    $regionId = (string) ($_POST['region_id'] ?? '');
+    $selectedRegion = $regionById[$regionId] ?? null;
+
+    $selectedProvinceId = $selectedRegion
+        ? (string) $selectedRegion['province_id']
+        : '';
+    $selectedProvince = $provinceById[$selectedProvinceId] ?? null;
+    $selectedIsland = '';
+    if ($selectedProvince) {
+        foreach ($wilayahByIsland as $island => $provinceNames) {
+            if (in_array($selectedProvince['name'], $provinceNames, true)) {
+                $selectedIsland = $island;
+                break;
+            }
+        }
+    }
+
+    foreach ($wilayahData['provinces'] as $province) {
+        $islandFound = false;
+        foreach ($wilayahByIsland as $provinceNames) {
+            if (in_array($province['name'], $provinceNames, true)) {
+                $islandFound = true;
+                break;
+            }
+        }
+        if (!$islandFound) {
+            throw new RuntimeException(
+                'Provinsi tidak termasuk dalam kelompok pulau: ' . $province['name']
+            );
+        }
+    }
+} catch (Throwable $ex) {
+    error_log('Daftar kota/kabupaten gagal dimuat: ' . $ex->getMessage());
+    $wilayahError = 'Daftar kota/kabupaten gagal dimuat. Lokasi tetap dapat dipilih langsung pada peta.';
+    $wilayahData = ['provinces' => [], 'regencies' => []];
+    $provinceById = [];
+    $regionById = [];
+}
 
 // Token untuk melindungi form dari CSRF.
 if (empty($_SESSION['csrf_token'])) {
@@ -112,7 +247,7 @@ function uploadFotoToko($field)
 
 // Ambil profil toko milik pengguna yang sedang login.
 $stmt = $pdo->prepare("
-    SELECT id, owner_id, nama, alamat, deskripsi, foto_profil
+    SELECT id, owner_id, nama, alamat, latitude, longitude, wilayah_id, deskripsi, foto_profil
     FROM restaurants
     WHERE owner_id = ?
     LIMIT 1
@@ -120,6 +255,28 @@ $stmt = $pdo->prepare("
 $stmt->execute([$userId]);
 
 $toko = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+
+if (
+    $_SERVER['REQUEST_METHOD'] !== 'POST' &&
+    $toko &&
+    !empty($toko['wilayah_id'])
+) {
+    $regionId = (string) $toko['wilayah_id'];
+    $selectedRegion = $regionById[$regionId] ?? null;
+    if ($selectedRegion) {
+        $selectedProvinceId = (string) $selectedRegion['province_id'];
+        $selectedProvince = $provinceById[$selectedProvinceId] ?? null;
+        foreach ($wilayahByIsland as $island => $provinceNames) {
+            if (
+                $selectedProvince &&
+                in_array($selectedProvince['name'], $provinceNames, true)
+            ) {
+                $selectedIsland = $island;
+                break;
+            }
+        }
+    }
+}
 
 // Proses penyimpanan profil toko.
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -137,11 +294,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $nama = trim($_POST['nama'] ?? '');
         $alamat = trim($_POST['alamat'] ?? '');
+        $latitudeInput = trim($_POST['latitude'] ?? '');
+        $longitudeInput = trim($_POST['longitude'] ?? '');
         $deskripsi = trim($_POST['deskripsi'] ?? '');
 
-        if ($nama === '' || $alamat === '') {
+        if ($nama === '') {
             throw new RuntimeException(
-                'Nama toko dan alamat wajib diisi.'
+                'Nama toko wajib diisi.'
+            );
+        }
+
+        $regionId = trim($_POST['region_id'] ?? '');
+        $selectedRegion = $regionById[$regionId] ?? null;
+        if (!$selectedRegion) {
+            throw new RuntimeException(
+                'Pilih pulau, provinsi, dan kota/kabupaten yang valid.'
+            );
+        }
+        $selectedProvince = $provinceById[
+            (string) $selectedRegion['province_id']
+        ] ?? null;
+        if (!$selectedProvince) {
+            throw new RuntimeException(
+                'Provinsi untuk kota/kabupaten ini tidak ditemukan.'
+            );
+        }
+
+        foreach ([$selectedRegion['name'], $selectedProvince['name'], 'Indonesia'] as $index => $area) {
+            $areaSearchName = $index === 0
+                ? preg_replace('/^(Kabupaten|Kota Administrasi|Kota)\s+/i', '', $area)
+                : $area;
+            if (mb_stripos($alamat, $areaSearchName, 0, 'UTF-8') === false) {
+                $alamat .= ', ' . $area;
+            }
+        }
+
+        if ($alamat === '') {
+            throw new RuntimeException(
+                'Alamat gagal dibuat. Isi alamat jalan atau pilih kembali titik peta.'
             );
         }
 
@@ -153,8 +343,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (mb_strlen($alamat) > 255) {
             throw new RuntimeException(
-                'Alamat maksimal 255 karakter.'
+                'Alamat beserta kota/kabupaten dan provinsi maksimal 255 karakter. Persingkat alamat jalan.'
             );
+        }
+
+        if (($latitudeInput === '') !== ($longitudeInput === '')) {
+            throw new RuntimeException(
+                'Pilih titik lokasi toko pada peta.'
+            );
+        }
+
+        if ($latitudeInput === '') {
+            throw new RuntimeException(
+                'Pilih kota/kabupaten dan klik titik lokasi toko pada peta.'
+            );
+        }
+
+        $latitude = null;
+        $longitude = null;
+
+        if ($latitudeInput !== '') {
+            if (
+                !is_numeric($latitudeInput) ||
+                !is_numeric($longitudeInput) ||
+                (float) $latitudeInput < -90 ||
+                (float) $latitudeInput > 90 ||
+                (float) $longitudeInput < -180 ||
+                (float) $longitudeInput > 180
+            ) {
+                throw new RuntimeException(
+                    'Koordinat lokasi toko tidak valid.'
+                );
+            }
+
+            $latitude = (float) $latitudeInput;
+            $longitude = (float) $longitudeInput;
         }
 
         $fotoBaru = uploadFotoToko('foto_profil');
@@ -165,6 +388,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     UPDATE restaurants
                     SET nama = ?,
                         alamat = ?,
+                        latitude = ?,
+                        longitude = ?,
+                        wilayah_id = ?,
                         deskripsi = ?,
                         foto_profil = ?
                     WHERE owner_id = ?
@@ -173,6 +399,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([
                     $nama,
                     $alamat,
+                    $latitude,
+                    $longitude,
+                    $regionId,
                     $deskripsi,
                     $fotoBaru,
                     $userId
@@ -182,6 +411,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     UPDATE restaurants
                     SET nama = ?,
                         alamat = ?,
+                        latitude = ?,
+                        longitude = ?,
+                        wilayah_id = ?,
                         deskripsi = ?
                     WHERE owner_id = ?
                 ");
@@ -189,6 +421,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([
                     $nama,
                     $alamat,
+                    $latitude,
+                    $longitude,
+                    $regionId,
                     $deskripsi,
                     $userId
                 ]);
@@ -196,14 +431,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $stmt = $pdo->prepare("
                 INSERT INTO restaurants
-                    (owner_id, nama, alamat, deskripsi, foto_profil)
-                VALUES (?, ?, ?, ?, ?)
+                    (owner_id, nama, alamat, latitude, longitude, wilayah_id, deskripsi, foto_profil)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ");
 
             $stmt->execute([
                 $userId,
                 $nama,
                 $alamat,
+                $latitude,
+                $longitude,
+                $regionId,
                 $deskripsi,
                 $fotoBaru
             ]);
@@ -212,7 +450,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Regenerasi token setelah berhasil menyimpan.
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 
-        header('Location: profil_penjual.php?sukses=1');
+        header('Location: kelola_menu.php?toko=tersimpan');
         exit;
 
     } catch (Throwable $ex) {
@@ -231,7 +469,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Ambil ulang profil setelah proses POST.
     $stmt = $pdo->prepare("
-        SELECT id, owner_id, nama, alamat, deskripsi, foto_profil
+        SELECT id, owner_id, nama, alamat, latitude, longitude, wilayah_id, deskripsi, foto_profil
         FROM restaurants
         WHERE owner_id = ?
         LIMIT 1
@@ -296,6 +534,10 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
     <title>Profil Penjual - Mencari Makan</title>
 
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="">
 
     <style>
         * {
@@ -783,6 +1025,124 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
                     ? ($_POST['alamat'] ?? '')
                     : ($toko['alamat'] ?? '')
             ) ?></textarea>
+            <p class="hint">
+                Alamat otomatis diisi dari titik peta dan pilihan wilayah.
+                Kamu masih bisa menambahkan detail alamat atau patokan.
+            </p>
+            <span class="hint" data-address-status role="status" aria-live="polite"></span>
+
+            <label class="field" for="map-picker">
+                Titik Lokasi Toko
+            </label>
+
+            <p class="hint">
+                Klik titik toko pada peta atau gunakan lokasi perangkat
+                saat berada di toko. Lokasi ini akan ditampilkan kepada pembeli.
+            </p>
+
+            <label class="field" for="map-island-select">Pulau</label>
+            <select id="map-island-select"
+                    aria-describedby="map-region-hint"
+                    <?= $wilayahError !== '' ? 'disabled' : '' ?>>
+                <option value="">Pilih pulau...</option>
+                <?php foreach (array_keys($wilayahByIsland) as $island): ?>
+                    <option value="<?= e($island) ?>"
+                        <?= $selectedIsland === $island ? 'selected' : '' ?>
+                    ><?= e($island) ?></option>
+                <?php endforeach; ?>
+            </select>
+
+            <label class="field" for="map-province-select">Provinsi</label>
+            <select id="map-province-select"
+                    <?= $selectedIsland === '' || $wilayahError !== '' ? 'disabled' : '' ?>>
+                <option value="">Pilih provinsi...</option>
+                <?php foreach ($wilayahData['provinces'] as $province): ?>
+                    <?php
+                    $provinceIsland = '';
+                    foreach ($wilayahByIsland as $island => $provinceNames) {
+                        if (in_array($province['name'], $provinceNames, true)) {
+                            $provinceIsland = $island;
+                            break;
+                        }
+                    }
+                    ?>
+                    <option
+                        value="<?= e($province['id']) ?>"
+                        data-island="<?= e($provinceIsland) ?>"
+                        <?= $selectedProvinceId === (string) $province['id'] ? 'selected' : '' ?>
+                    ><?= e($province['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+
+            <label class="field" for="map-region-select">Kota/Kabupaten</label>
+            <select id="map-region-select"
+                    name="region_id"
+                    required
+                    <?= $selectedProvinceId === '' || $wilayahError !== '' ? 'disabled' : '' ?>>
+                <option value="">Pilih kota/kabupaten...</option>
+                <?php foreach ($wilayahData['regencies'] as $region): ?>
+                    <option
+                        value="<?= e($region['id']) ?>"
+                        data-province="<?= e($region['province_id']) ?>"
+                        data-lat="<?= e($region['latitude']) ?>"
+                        data-lng="<?= e($region['longitude']) ?>"
+                        <?= $regionId === (string) $region['id'] ? 'selected' : '' ?>
+                    ><?= e($region['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <?php if ($wilayahError !== ''): ?>
+                <div class="error" role="alert"><?= e($wilayahError) ?></div>
+            <?php endif; ?>
+            <p id="map-region-hint" class="hint">
+                Pilih pulau, provinsi, lalu salah satu dari 514 kota/kabupaten.
+                Peta otomatis menuju wilayah; klik titik toko yang tepat pada peta.
+            </p>
+
+            <div class="map-actions">
+                <button type="button" class="secondary"
+                        data-use-current-location="map-picker">
+                    Gunakan lokasi perangkat
+                </button>
+                <span data-map-status role="status" aria-live="polite">
+                    Pilih lokasi toko pada peta.
+                </span>
+            </div>
+
+            <div
+                id="map-picker"
+                class="location-map location-map-picker"
+                data-location-picker
+                data-maptiler-key="<?= e($maptilerApiKey) ?>"
+                data-lat="<?= e(
+                    $_SERVER['REQUEST_METHOD'] === 'POST'
+                        ? ($_POST['latitude'] ?? '')
+                        : ($toko['latitude'] ?? '')
+                ) ?>"
+                data-lng="<?= e(
+                    $_SERVER['REQUEST_METHOD'] === 'POST'
+                        ? ($_POST['longitude'] ?? '')
+                        : ($toko['longitude'] ?? '')
+                ) ?>"
+            ></div>
+
+            <input
+                type="hidden"
+                name="latitude"
+                value="<?= e(
+                    $_SERVER['REQUEST_METHOD'] === 'POST'
+                        ? ($_POST['latitude'] ?? '')
+                        : ($toko['latitude'] ?? '')
+                ) ?>"
+            >
+            <input
+                type="hidden"
+                name="longitude"
+                value="<?= e(
+                    $_SERVER['REQUEST_METHOD'] === 'POST'
+                        ? ($_POST['longitude'] ?? '')
+                        : ($toko['longitude'] ?? '')
+                ) ?>"
+            >
 
             <label class="field" for="deskripsi">
                 Deskripsi Toko
@@ -830,5 +1190,9 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
     © 2026 Mencari Makan
 </footer>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script>
+<script src="maps.js"></script>
 </body>
 </html>

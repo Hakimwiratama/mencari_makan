@@ -15,6 +15,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+verify_csrf();
+
 $userId = (int) ($_SESSION['user_id'] ?? 0);
 $orderId = filter_input(INPUT_POST, 'order_id', FILTER_VALIDATE_INT);
 $aksi = $_POST['aksi'] ?? '';
@@ -67,6 +69,7 @@ try {
             SET status = 'diterima',
                 alasan_penolakan = NULL,
                 ditolak_at = NULL,
+                selesai_at = NULL,
                 konfirmasi_pembeli = 0
             WHERE id = ?
         ");
@@ -76,6 +79,11 @@ try {
         if ($status !== 'menunggu') {
             $pdo->rollBack();
             header('Location: pesanan_penjual.php?error=akses');
+            exit;
+        }
+        if (mb_strlen($alasan) > 1000) {
+            $pdo->rollBack();
+            header('Location: pesanan_penjual.php?error=alasan');
             exit;
         }
 

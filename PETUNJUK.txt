@@ -5,6 +5,12 @@ Isi paket:
 - aksi_pesanan_penjual.php: aksi terima/tolak pesanan milik toko yang sedang login.
 - pesanan_saya.php: halaman pembeli untuk melihat status, alasan penolakan, dan menekan OK.
 - pembaruan_orders.sql: menambahkan kolom alasan_penolakan dan konfirmasi_pembeli.
+- buyer_addresses.sql: membuat buku alamat pembeli dengan kota/kabupaten, provinsi, dan koordinat.
+- chat.sql: menyiapkan tabel chat kosong untuk pesan langsung pembeli dan pemilik toko (tanpa kontak/pesan contoh).
+- perbaikan_kelola_pesanan.sql: melengkapi status dan waktu arsip pesanan pada database lama.
+- ulasan_toko.sql: menambahkan tabel rating dan ulasan untuk toko.
+- lokasi_toko.sql: menambahkan koordinat lokasi toko untuk fitur peta dan rute.
+- wilayah_toko.sql: menyimpan pilihan kota/kabupaten pada profil toko lama.
 
 CARA MEMASANG:
 1. Backup folder C:\xampp\htdocs\mencari_makan terlebih dahulu.
@@ -12,9 +18,16 @@ CARA MEMASANG:
 3. Jika pesanan_saya.php sudah ada, simpan salinan lama sebelum menggantinya.
 4. Buka http://localhost/phpmyadmin, pilih database mencari_makan, buka tab SQL.
 5. Jalankan isi pembaruan_orders.sql. Jangan jalankan ulang jika kolom tersebut sudah ada.
-6. Login sebagai akun penjual (session peran harus bernilai 'pemilik'), lalu buka:
+6. Untuk memperbaiki database pesanan yang sudah ada, jalankan perbaikan_kelola_pesanan.sql satu kali.
+7. Untuk rating toko, jalankan ulasan_toko.sql satu kali pada database mencari_makan.
+8. Untuk fitur peta, jalankan lokasi_toko.sql satu kali pada database mencari_makan.
+   Jika database sudah memiliki latitude dan longitude, jalankan wilayah_toko.sql satu kali.
+9. Jalankan buyer_addresses.sql satu kali untuk mengaktifkan alamat pembeli.
+10. Jalankan chat.sql satu kali jika tabel chat_rooms dan chat_messages belum ada.
+11. Login sebagai akun penjual (session peran harus bernilai 'pemilik'), lalu buka:
    http://localhost/mencari_makan/pesanan_penjual.php
-7. Pembeli login sebagai akun pencari (session peran harus bernilai 'pencari'), lalu buka:
+12. Penjual pilih titik lokasi tokonya di peta pada halaman Profil Toko, lalu simpan.
+13. Pembeli login sebagai akun pencari (session peran harus bernilai 'pencari'), lalu buka:
    http://localhost/mencari_makan/pesanan_saya.php
 
 ALUR:
@@ -23,6 +36,20 @@ ALUR:
 - Atau penjual mengisi alasan dan klik Tolak Pesanan, status menjadi ditolak.
 - Pembeli melihat alasan pada halaman Pesanan Saya dan klik OK, saya mengerti.
 - Status konfirmasi tersebut terlihat oleh penjual di halaman pesanan masuk.
+- Rating dan ulasan hanya dapat diberikan pembeli atas pesanan berstatus selesai; satu rating tersimpan per pesanan.
+- Profil toko menampilkan rating rata-rata, ulasan pembeli, deskripsi, dan menu yang tersedia.
+- Pesanan ditolak dan selesai tersimpan di bagian arsip.
+- Pembeli dapat berbagi lokasi perangkat untuk melihat rute berkendara ke toko terdekat.
+- Chat hanya menampilkan percakapan pembeli dan pemilik toko yang benar-benar dimulai; tidak ada kontak atau pesan contoh. Pesan akun sendiri di kanan, pesan lawan bicara di kiri, dan pesan baru diperbarui otomatis.
+- Peta memakai MapTiler Streets v4 jika API key tersedia, dan otomatis memakai OpenStreetMap jika key belum diatur; perutean OSRM mengikuti jaringan jalan.
+- Saat checkout, pembeli dapat memilih alamat tersimpan sebagai alamat saat ini, atau menambahkan beberapa alamat baru. Alamat baru menyimpan nama alamat, detail jalan, provinsi, kota/kabupaten, dan koordinat; alamat terpilih menjadi alamat saat ini dan dipakai untuk pesanan.
+- Pembeli dapat memakai alamat pesanan sebelumnya sebagai isian cepat, lalu melengkapi wilayah dan titik petanya sebelum menyimpan alamat tersebut.
+- Buat API key MapTiler di https://cloud.maptiler.com/ lalu atur environment variable MAPTILER_API_KEY sebelum menjalankan PHP/server web untuk mengaktifkan pengisian alamat otomatis dari titik. Tanpa key, peta OpenStreetMap tetap tampil dan detail jalan dapat diisi manual.
+- Untuk server PHP bawaan di PowerShell, jalankan `$env:MAPTILER_API_KEY="API_KEY_KAMU"` sebelum `php -S 127.0.0.1:8000 -t C:\laragon\www\mencari-makan`. Restart server setelah mengatur key.
+- Browser meminta izin lokasi. Titik awal dan tujuan otomatis di-snap ke jalan terdekat oleh layanan perutean OSRM.
+- Pada form Profil Toko, pilih pulau, provinsi, lalu kota/kabupaten dan klik titik toko. Alamat jalan diisi otomatis dari koordinat; kota/kabupaten dan provinsi yang dipilih ditambahkan agar sesuai dengan lokasi pilihan.
+- Daftar wilayah disimpan di wilayah-indonesia.json, bersumber dari https://github.com/emsifa/api-wilayah-indonesia (diperbarui 8 November 2026).
+- Koordinat pengguna dikirim ke layanan OSRM saat meminta rute. Peta dan rute memerlukan koneksi internet.
 
 CATATAN:
 - Paket mengasumsikan config.php menyediakan PDO bernama $pdo.

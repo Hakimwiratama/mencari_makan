@@ -10,6 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+verify_csrf();
+
 $userId = (int)($_SESSION['user_id'] ?? 0);
 $orderId = filter_input(INPUT_POST, 'order_id', FILTER_VALIDATE_INT);
 

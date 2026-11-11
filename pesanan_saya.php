@@ -7,6 +7,74 @@ require_login();
 
 $userId = (int) ($_SESSION['user_id'] ?? 0);
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'rating') {
+    if (!in_array($_SESSION['peran'] ?? '', ['pencari', 'pembeli'], true)) {
+        http_response_code(403);
+        exit('Hanya pembeli yang dapat memberi rating.');
+    }
+
+    verify_csrf();
+
+    $orderId = filter_input(INPUT_POST, 'order_id', FILTER_VALIDATE_INT);
+    $rating = filter_input(INPUT_POST, 'rating', FILTER_VALIDATE_INT);
+    $review = trim($_POST['ulasan'] ?? '');
+
+    if (!$orderId || !$rating || $rating < 1 || $rating > 5) {
+        header('Location: pesanan_saya.php?rating=error&pesan=' .
+            rawurlencode('Pilih nilai rating dari 1 sampai 5.'));
+        exit;
+    }
+
+    if (mb_strlen($review) > 2000) {
+        header('Location: pesanan_saya.php?rating=error&pesan=' .
+            rawurlencode('Ulasan maksimal 2.000 karakter.'));
+        exit;
+    }
+
+    try {
+        $stmt = $pdo->prepare("
+            SELECT restaurant_id
+            FROM orders
+            WHERE id = ?
+              AND buyer_id = ?
+              AND status = 'selesai'
+            LIMIT 1
+        ");
+        $stmt->execute([$orderId, $userId]);
+        $completedOrder = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$completedOrder) {
+            header('Location: pesanan_saya.php?rating=error&pesan=' .
+                rawurlencode('Rating hanya dapat diberikan untuk pesanan selesai milikmu.'));
+            exit;
+        }
+
+        $stmt = $pdo->prepare("
+            INSERT INTO restaurant_reviews
+                (order_id, restaurant_id, buyer_id, rating, ulasan)
+            VALUES (?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                rating = VALUES(rating),
+                ulasan = VALUES(ulasan),
+                updated_at = CURRENT_TIMESTAMP
+        ");
+        $stmt->execute([
+            $orderId,
+            (int) $completedOrder['restaurant_id'],
+            $userId,
+            $rating,
+            $review !== '' ? $review : null
+        ]);
+
+        header('Location: pesanan_saya.php?rating=berhasil');
+        exit;
+    } catch (Throwable $e) {
+        error_log('Menyimpan rating toko: ' . $e->getMessage());
+        http_response_code(500);
+        exit('Rating gagal disimpan. Periksa log PHP.');
+    }
+}
+
 function rupiahPembeli($angka): string
 {
     return 'Rp ' . number_format((float) $angka, 0, ',', '.');
@@ -15,11 +83,11 @@ function rupiahPembeli($angka): string
 function waktuArsipPembeli(array $o): ?string
 {
     if ($o['status'] === 'ditolak') {
-        return $o['ditolak_at'] ?? null;
+        return $o['ditolak_at'] ?? $o['created_at'] ?? null;
     }
 
     if ($o['status'] === 'selesai') {
-        return $o['selesai_at'] ?? null;
+        return $o['selesai_at'] ?? $o['created_at'] ?? null;
     }
 
     return null;
@@ -47,7 +115,7 @@ function formatSisaArsipPembeli(?int $sisa): string
     }
 
     if ($sisa <= 0) {
-        return 'Masa arsip 3 hari telah lewat. Menunggu proses penghapusan otomatis.';
+        return 'Masa arsip 3 hari telah lewat.';
     }
 
     $hari = (int) floor($sisa / 86400);
@@ -65,10 +133,14 @@ try {
     $stmt = $pdo->prepare("
         SELECT o.*,
                m.nama_menu,
-               r.nama AS nama_toko
+               r.nama AS nama_toko,
+               rr.id AS review_id,
+               rr.rating AS review_rating,
+               rr.ulasan AS review_ulasan
         FROM orders o
         LEFT JOIN restaurant_menus m ON m.id = o.menu_id
         LEFT JOIN restaurants r ON r.id = o.restaurant_id
+        LEFT JOIN restaurant_reviews rr ON rr.order_id = o.id
         WHERE o.buyer_id = ?
         ORDER BY o.created_at DESC
     ");
@@ -138,11 +210,25 @@ button:disabled{background:#94a3b8;cursor:default}
     </div>
 <?php elseif (($_GET['error'] ?? '') === 'data'): ?>
     <div class="error">Data pesanan tidak valid.</div>
+<?php elseif (($_GET['error'] ?? '') === 'csrf'): ?>
+    <div class="error">Formulir kedaluwarsa atau tidak valid. Muat ulang halaman lalu coba lagi.</div>
+<?php endif; ?>
+
+<?php if (($_GET['rating'] ?? '') === 'berhasil'): ?>
+    <div class="notice" role="status">Terima kasih! Rating dan ulasan untuk toko berhasil disimpan.</div>
+<?php elseif (($_GET['rating'] ?? '') === 'error'): ?>
+    <div class="error" role="alert">
+        <?= htmlspecialchars(
+            $_GET['pesan'] ?? 'Rating tidak dapat disimpan.',
+            ENT_QUOTES,
+            'UTF-8'
+        ) ?>
+    </div>
 <?php endif; ?>
 
 <div class="notice">
-    ℹ️ Pesanan yang ditolak atau selesai tetap ditampilkan selama masa arsip 3 hari.
-    Setelah masa arsip habis, pesanan akan dihapus permanen oleh sistem terjadwal.
+    ℹ️ Masa arsip dihitung selama 3 hari setelah pesanan ditolak atau selesai.
+    Riwayat pesanan tetap tersimpan setelah masa arsip berakhir.
 </div>
 
 <?php if (!$orders): ?>
@@ -193,7 +279,15 @@ button:disabled{background:#94a3b8;cursor:default}
                 </div>
 
                 <span class="status <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>">
-                    <?= htmlspecialchars(ucfirst($status), ENT_QUOTES, 'UTF-8') ?>
+                    <?= htmlspecialchars([
+                        'menunggu' => 'Menunggu',
+                        'diterima' => 'Diterima',
+                        'diproses' => 'Diproses',
+                        'dikirim' => 'Sedang dikirim',
+                        'selesai' => 'Selesai',
+                        'ditolak' => 'Ditolak',
+                        'dibatalkan' => 'Dibatalkan'
+                    ][$status] ?? 'Status tidak dikenal', ENT_QUOTES, 'UTF-8') ?>
                 </span>
             </div>
 
@@ -268,6 +362,8 @@ button:disabled{background:#94a3b8;cursor:default}
                             <input type="hidden"
                                    name="order_id"
                                    value="<?= (int) $o['id'] ?>">
+                            <input type="hidden" name="csrf_token"
+                                   value="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
                             <button type="submit">OK, saya mengerti</button>
                         </form>
                     <?php else: ?>
@@ -310,6 +406,38 @@ button:disabled{background:#94a3b8;cursor:default}
                 <p class="muted">✓ Pesanan diterima penjual dan sedang dipersiapkan.</p>
             <?php elseif ($status === 'dikirim'): ?>
                 <p class="muted">🚚 Pesanan sedang dalam proses pengantaran.</p>
+            <?php elseif ($status === 'selesai'): ?>
+                <section class="review-form">
+                    <h3>⭐ Beri rating toko</h3>
+                    <p class="muted">Rating hanya tersedia untuk pesanan yang sudah selesai.</p>
+                    <form method="post" action="pesanan_saya.php">
+                        <input type="hidden" name="action" value="rating">
+                        <input type="hidden" name="order_id" value="<?= (int) $o['id'] ?>">
+                        <input type="hidden" name="csrf_token"
+                               value="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
+                        <label for="rating-<?= (int) $o['id'] ?>">Rating</label>
+                        <select id="rating-<?= (int) $o['id'] ?>" name="rating" required>
+                            <option value="">Pilih rating...</option>
+                            <?php for ($ratingValue = 5; $ratingValue >= 1; $ratingValue--): ?>
+                                <option value="<?= $ratingValue ?>"
+                                    <?= (int) ($o['review_rating'] ?? 0) === $ratingValue ? 'selected' : '' ?>>
+                                    <?= $ratingValue ?> bintang
+                                </option>
+                            <?php endfor; ?>
+                        </select>
+                        <label for="ulasan-<?= (int) $o['id'] ?>">Ulasan (opsional)</label>
+                        <textarea id="ulasan-<?= (int) $o['id'] ?>"
+                                  name="ulasan" maxlength="2000"
+                                  placeholder="Bagikan pengalamanmu dengan toko ini"><?= htmlspecialchars(
+                                      $o['review_ulasan'] ?? '',
+                                      ENT_QUOTES,
+                                      'UTF-8'
+                                  ) ?></textarea>
+                        <button type="submit">
+                            <?= !empty($o['review_id']) ? 'Perbarui Rating' : 'Kirim Rating' ?>
+                        </button>
+                    </form>
+                </section>
             <?php endif; ?>
         </article>
     <?php endforeach; ?>

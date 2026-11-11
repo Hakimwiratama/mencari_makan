@@ -22,6 +22,30 @@ $restaurant = $stmt->fetch(PDO::FETCH_ASSOC);
 $ordersAktif = [];
 $ordersArsip = [];
 $pesanHalaman = '';
+$notifikasi = '';
+$jenisNotifikasi = 'notice';
+
+$notifikasiStatus = [
+    'diterima' => 'Pesanan berhasil diterima.',
+    'ditolak' => 'Pesanan berhasil ditolak dan alasan dikirim ke pembeli.',
+    'dikirim' => 'Pesanan ditandai sedang dikirim.',
+    'selesai' => 'Pesanan ditandai selesai dan dipindahkan ke arsip.'
+];
+$notifikasiError = [
+    'data' => 'Permintaan pesanan tidak valid. Coba kembali.',
+    'alasan' => 'Alasan penolakan harus berisi minimal 5 karakter.',
+    'akses' => 'Pesanan sudah berubah atau bukan milik toko ini. Muat ulang halaman.',
+    'csrf' => 'Formulir kedaluwarsa atau tidak valid. Muat ulang halaman lalu coba lagi.'
+];
+
+$berhasil = $_GET['berhasil'] ?? '';
+$error = $_GET['error'] ?? '';
+if (isset($notifikasiStatus[$berhasil])) {
+    $notifikasi = $notifikasiStatus[$berhasil];
+} elseif (isset($notifikasiError[$error])) {
+    $notifikasi = $notifikasiError[$error];
+    $jenisNotifikasi = 'error';
+}
 
 if (!$restaurant) {
     $pesanHalaman = 'Profil toko belum dibuat. Buat profil toko terlebih dahulu agar pesanan dapat masuk.';
@@ -54,14 +78,14 @@ if (!$restaurant) {
         JOIN users u ON u.id = o.buyer_id
         WHERE o.restaurant_id = ?
           AND (
-              (o.status = 'ditolak' AND o.ditolak_at IS NOT NULL)
+              o.status = 'ditolak'
               OR
-              (o.status = 'selesai' AND o.selesai_at IS NOT NULL)
+              o.status = 'selesai'
           )
         ORDER BY
           GREATEST(
-              COALESCE(o.ditolak_at, '1000-01-01 00:00:00'),
-              COALESCE(o.selesai_at, '1000-01-01 00:00:00')
+              COALESCE(o.ditolak_at, o.created_at),
+              COALESCE(o.selesai_at, o.created_at)
           ) DESC
     ");
     $stmt->execute([(int) $restaurant['id']]);
@@ -71,6 +95,21 @@ if (!$restaurant) {
 function rupiahPenjual($angka): string
 {
     return 'Rp ' . number_format((float) $angka, 0, ',', '.');
+}
+
+function statusPesananPenjual(string $status): string
+{
+    $labels = [
+        'menunggu' => 'Menunggu',
+        'diterima' => 'Diterima',
+        'diproses' => 'Diproses',
+        'dikirim' => 'Sedang dikirim',
+        'selesai' => 'Selesai',
+        'ditolak' => 'Ditolak',
+        'dibatalkan' => 'Dibatalkan'
+    ];
+
+    return $labels[$status] ?? 'Status tidak dikenal';
 }
 
 function sisaArsipPenjual(?string $waktu): string
@@ -83,7 +122,7 @@ function sisaArsipPenjual(?string $waktu): string
     $sisa = $batas - time();
 
     if ($sisa <= 0) {
-        return 'Melewati masa arsip; menunggu proses penghapusan otomatis.';
+        return 'Masa arsip 3 hari telah lewat.';
     }
 
     $hari = (int) floor($sisa / 86400);
@@ -100,11 +139,11 @@ function sisaArsipPenjual(?string $waktu): string
 function waktuArsipPenjual(array $o): ?string
 {
     if ($o['status'] === 'ditolak') {
-        return $o['ditolak_at'] ?? null;
+        return $o['ditolak_at'] ?? $o['created_at'] ?? null;
     }
 
     if ($o['status'] === 'selesai') {
-        return $o['selesai_at'] ?? null;
+        return $o['selesai_at'] ?? $o['created_at'] ?? null;
     }
 
     return null;
@@ -124,7 +163,7 @@ function tampilkanPesananPenjual(array $o, bool $arsip = false): void
             </div>
 
             <span class="status <?= htmlspecialchars($o['status'], ENT_QUOTES, 'UTF-8') ?>">
-                <?= htmlspecialchars(ucfirst($o['status']), ENT_QUOTES, 'UTF-8') ?>
+                <?= htmlspecialchars(statusPesananPenjual($o['status']), ENT_QUOTES, 'UTF-8') ?>
             </span>
         </div>
 
@@ -194,7 +233,7 @@ function tampilkanPesananPenjual(array $o, bool $arsip = false): void
                     ) ?>
                 </p>
                 <p class="small">
-                    Pesanan dijadwalkan dihapus permanen setelah 3 hari sejak
+                    Arsip dihitung selama 3 hari sejak pesanan
                     <?= $o['status'] === 'ditolak' ? 'ditolak' : 'diselesaikan' ?>.
                 </p>
             </div>
@@ -205,6 +244,7 @@ function tampilkanPesananPenjual(array $o, bool $arsip = false): void
                       onsubmit="return confirm('Terima pesanan ini?')">
                     <input type="hidden" name="order_id" value="<?= (int) $o['id'] ?>">
                     <input type="hidden" name="aksi" value="terima">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
                     <button class="accept" type="submit">✓ Terima Pesanan</button>
                 </form>
             </div>
@@ -213,6 +253,7 @@ function tampilkanPesananPenjual(array $o, bool $arsip = false): void
                   onsubmit="return validasiAlasan(this)">
                 <input type="hidden" name="order_id" value="<?= (int) $o['id'] ?>">
                 <input type="hidden" name="aksi" value="tolak">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
 
                 <div class="reject-box">
                     <label for="alasan<?= (int) $o['id'] ?>">
@@ -232,6 +273,7 @@ function tampilkanPesananPenjual(array $o, bool $arsip = false): void
                   onsubmit="return confirm('Tandai pesanan sudah dikirim?')">
                 <input type="hidden" name="order_id" value="<?= (int) $o['id'] ?>">
                 <input type="hidden" name="aksi" value="kirim">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
                 <button class="accept" type="submit">🚚 Tandai Dikirim</button>
             </form>
 
@@ -240,6 +282,7 @@ function tampilkanPesananPenjual(array $o, bool $arsip = false): void
                   onsubmit="return confirm('Tandai pesanan selesai? Masa arsip 3 hari dimulai setelah ini.')">
                 <input type="hidden" name="order_id" value="<?= (int) $o['id'] ?>">
                 <input type="hidden" name="aksi" value="selesai">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') ?>">
                 <button class="accept" type="submit">✓ Tandai Selesai</button>
             </form>
         <?php endif; ?>
@@ -261,6 +304,8 @@ header h1{font-size:22px;margin:0}
 header a{color:#fff;text-decoration:none;background:#ffffff22;padding:10px 14px;border-radius:8px}
 main{max-width:1100px;margin:24px auto;padding:0 16px}
 .notice{padding:14px;border-radius:10px;background:#e0f2fe;margin-bottom:18px}
+.notice.success{background:#dcfce7;color:#166534}
+.notice.error{background:#fee2e2;color:#991b1b}
 .section-title{font-size:21px;margin:28px 0 14px}
 .order{background:#fff;border-radius:14px;padding:18px;margin:0 0 16px;box-shadow:0 4px 14px #0000000b;border:1px solid #e6eaf0}
 .order-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-bottom:1px solid #edf0f4;padding-bottom:12px;margin-bottom:12px}
@@ -293,10 +338,13 @@ button{border:0;border-radius:8px;padding:10px 14px;font-weight:bold;cursor:poin
 <?php if ($pesanHalaman !== ''): ?>
     <div class="notice"><?= htmlspecialchars($pesanHalaman, ENT_QUOTES, 'UTF-8') ?></div>
 <?php else: ?>
+    <?php if ($notifikasi !== ''): ?>
+        <div class="notice <?= htmlspecialchars($jenisNotifikasi, ENT_QUOTES, 'UTF-8') ?>"
+             role="status"><?= htmlspecialchars($notifikasi, ENT_QUOTES, 'UTF-8') ?></div>
+    <?php endif; ?>
     <div class="notice">
         Alur pesanan: Menunggu → Diterima → Dikirim → Selesai.
-        Pesanan ditolak dan selesai masuk arsip selama 3 hari, kemudian dijadwalkan
-        untuk dihapus permanen.
+        Pesanan ditolak dan selesai tersimpan di bagian arsip.
     </div>
 
     <h2 class="section-title">📥 Pesanan Aktif</h2>
