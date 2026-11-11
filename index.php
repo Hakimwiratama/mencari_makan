@@ -160,6 +160,7 @@ $shopsWithLocations = array_values(array_filter(
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Mencari Makan</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
     <link rel="stylesheet"
           href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
@@ -224,14 +225,8 @@ $shopsWithLocations = array_values(array_filter(
             transform: translateY(-1px);
         }
 
-        .nav-atas a.nav-pesanan {
-            background: #fef3c7;
-            color: #92400e;
-            border-color: #fcd34d;
-        }
-
         .nav-atas a.nav-keluar {
-            color: #b91c1c;
+            color: #0f766e;
         }
 
         main {
@@ -460,7 +455,7 @@ $shopsWithLocations = array_values(array_filter(
 </head>
 
 <body>
-<header>
+<header class="<?= $peran === 'pemilik' ? 'seller-dashboard-header' : 'buyer-dashboard-header' ?>">
     <h1>🍽️ Mencari Makan</h1>
 
     <p>
@@ -472,36 +467,11 @@ $shopsWithLocations = array_values(array_filter(
         <?php endif; ?>
     </p>
 
-    <nav class="nav-atas">
-        <a href="index.php">🏠 Beranda</a>
-
-        <?php if ($peran === 'pemilik'): ?>
-            <a href="profil_penjual.php">🏪 Profil Toko</a>
-            <a href="kelola_menu.php">🍽️ Kelola Menu</a>
-            <a href="chat.php">💬 Chat</a>
-
-            <a class="nav-pesanan" href="pesanan_penjual.php">
-                📦 Pesanan Masuk (<?= $jumlahMenunggu ?>)
-            </a>
-
-            <a class="nav-pesanan"
-               href="pesanan_penjual.php?status=diterima">
-                ✅ Pesanan Diterima (<?= $jumlahDiterima ?>)
-            </a>
-
-            <a href="pilih_peran.php">🔄 Ganti Peran</a>
-        <?php else: ?>
-            <a href="chat.php">💬 Chat</a>
-            <a href="pesanan_saya.php">📋 Pesanan Saya</a>
-            <a href="pilih_peran.php">🔄 Ganti Peran</a>
-        <?php endif; ?>
-
-        <a class="nav-keluar"
-           href="logout.php"
-           onclick="return confirm('Yakin ingin keluar dari akun?')">
-            🚪 Keluar
-        </a>
-    </nav>
+    <?php if ($peran === 'pemilik'): ?>
+        <?php require __DIR__ . '/seller_navigation.php'; ?>
+    <?php else: ?>
+        <?php require __DIR__ . '/buyer_navigation.php'; ?>
+    <?php endif; ?>
 </header>
 
 <main>

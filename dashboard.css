@@ -1,0 +1,165 @@
+.seller-dashboard-header {
+    padding: 22px max(18px, calc((100% - 1100px) / 2));
+}
+
+header.seller-dashboard-header > h1 {
+    height: 34px;
+    margin: 0 0 6px;
+    overflow: hidden;
+    font-size: 26px;
+    line-height: 34px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+header.seller-dashboard-header > p {
+    height: 24px;
+    margin: 0;
+    overflow: hidden;
+    line-height: 24px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.buyer-dashboard-header {
+    padding: 22px max(18px, calc((100% - 1100px) / 2));
+}
+
+header.buyer-dashboard-header > h1 {
+    height: 34px;
+    margin: 0 0 6px;
+    overflow: hidden;
+    font-size: 26px;
+    line-height: 34px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+header.buyer-dashboard-header > p {
+    height: 24px;
+    margin: 0;
+    overflow: hidden;
+    line-height: 24px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.seller-dashboard-nav {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 1100px;
+    padding: 10px;
+    margin: 16px auto 0;
+    border: 1px solid rgba(255, 255, 255, .8);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .10);
+}
+
+.seller-dashboard-nav a {
+    display: inline-block;
+    flex: 0 0 auto;
+    padding: 9px 10px;
+    border: 1px solid rgba(255, 255, 255, .4);
+    border-radius: 8px;
+    background: #fff;
+    color: #0f766e;
+    font-size: 13px;
+    font-weight: bold;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background .2s, transform .2s;
+}
+
+.seller-dashboard-nav a:hover {
+    background: #d9f4ee;
+    transform: translateY(-1px);
+}
+
+.buyer-dashboard-nav {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 1100px;
+    padding: 10px;
+    margin: 16px auto 0;
+    border: 1px solid rgba(255, 255, 255, .8);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .10);
+}
+
+.buyer-dashboard-nav a {
+    display: inline-block;
+    flex: 0 0 auto;
+    padding: 9px 10px;
+    border: 1px solid rgba(255, 255, 255, .4);
+    border-radius: 8px;
+    background: #fff;
+    color: #0f766e;
+    font-size: 13px;
+    font-weight: bold;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background .2s, transform .2s;
+}
+
+.buyer-dashboard-nav a:hover {
+    background: #d9f4ee;
+    transform: translateY(-1px);
+}
+
+@media (max-width: 600px) {
+    .seller-dashboard-header {
+        padding: 20px 16px;
+    }
+
+    header.seller-dashboard-header > h1 {
+        height: 30px;
+        font-size: 22px;
+        line-height: 30px;
+    }
+
+    header.seller-dashboard-header > p {
+        font-size: 14px;
+    }
+
+    .buyer-dashboard-header {
+        padding: 20px 16px;
+    }
+
+    header.buyer-dashboard-header > h1 {
+        height: 30px;
+        font-size: 22px;
+        line-height: 30px;
+    }
+
+    header.buyer-dashboard-header > p {
+        font-size: 14px;
+    }
+
+    .seller-dashboard-nav {
+        gap: 6px;
+        padding: 9px;
+    }
+
+    .seller-dashboard-nav a {
+        padding: 9px 10px;
+        font-size: 12px;
+    }
+
+    .buyer-dashboard-nav {
+        gap: 6px;
+        padding: 9px;
+    }
+
+    .buyer-dashboard-nav a {
+        padding: 9px 10px;
+        font-size: 12px;
+    }
+}

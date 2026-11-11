@@ -296,12 +296,12 @@ function tampilkanPesananPenjual(array $o, bool $arsip = false): void
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pesanan Masuk - Mencari Makan</title>
+<link rel="stylesheet" href="dashboard.css">
 <style>
 *{box-sizing:border-box}
-body{margin:0;font-family:Arial,sans-serif;background:#f4f6f9;color:#202733}
-header{background:#0f766e;color:#fff;padding:20px 5%;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+body{margin:0;font-family:Arial,sans-serif;background:#f4f7f6;color:#202733}
+header{background:#0f766e;color:#fff;padding:20px 5%}
 header h1{font-size:22px;margin:0}
-header a{color:#fff;text-decoration:none;background:#ffffff22;padding:10px 14px;border-radius:8px}
 main{max-width:1100px;margin:24px auto;padding:0 16px}
 .notice{padding:14px;border-radius:10px;background:#e0f2fe;margin-bottom:18px}
 .notice.success{background:#dcfce7;color:#166534}
@@ -329,9 +329,10 @@ button{border:0;border-radius:8px;padding:10px 14px;font-weight:bold;cursor:poin
 </style>
 </head>
 <body>
-<header>
+<header class="seller-dashboard-header">
     <h1>🔔 Pesanan Masuk<?= isset($restaurant['nama']) ? ' — ' . htmlspecialchars($restaurant['nama'], ENT_QUOTES, 'UTF-8') : '' ?></h1>
-    <a href="index.php">Kembali ke Beranda</a>
+    <p>Kelola pesanan dan pantau status pesanan pelangganmu.</p>
+    <?php require __DIR__ . '/seller_navigation.php'; ?>
 </header>
 
 <main>

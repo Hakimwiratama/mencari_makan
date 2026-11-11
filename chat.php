@@ -393,23 +393,31 @@ function chatTime(?string $date): string
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Chat - Mencari Makan</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
 
     <style>
-        body { background: #f0f2f5; color: #111b21; }
+        body { background: #f4f7f6; color: #111b21; }
         .chat-topbar {
-            padding: 12px max(16px, calc((100% - 1300px) / 2));
-            background: #008069;
+            padding: 22px max(18px, calc((100% - 1100px) / 2));
+            background: #0f766e;
         }
         .chat-topbar h1 { margin: 0; font-size: 22px; }
         .chat-topbar p { margin: 4px 0 0; color: #e6f4f1; }
-        .chat-navigation { display: flex; gap: 8px; margin-top: 10px; }
+        .chat-navigation { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
         .chat-navigation a {
-            padding: 7px 10px;
+            padding: 10px 13px;
+            border: 1px solid rgba(255, 255, 255, .4);
             border-radius: 8px;
-            background: #ffffff20;
-            color: #fff;
+            background: #fff;
+            color: #0f766e;
             text-decoration: none;
-            font-size: 13px;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background .2s, transform .2s;
+        }
+        .chat-navigation a:hover {
+            background: #d9f4ee;
+            transform: translateY(-1px);
         }
         .chat-shell {
             display: grid;
@@ -559,7 +567,7 @@ function chatTime(?string $date): string
             border-radius: 9px;
             background: #fff;
         }
-        .chat-form button { min-height: 44px; padding: 10px 16px; background: #008069; }
+        .chat-form button { min-height: 44px; padding: 10px 16px; background: #0f766e; }
         .chat-send-status { padding: 0 16px 8px; color: #a33; font-size: 13px; }
         .chat-start-panel {
             display: grid;
@@ -573,7 +581,7 @@ function chatTime(?string $date): string
         .chat-start-panel h2 { color: #41545b; font-weight: 400; }
         .chat-hidden { display: none !important; }
         @media (max-width: 760px) {
-            .chat-topbar { padding: 12px 16px; }
+            .chat-topbar { padding: 20px 16px; }
             .chat-topbar h1 { font-size: 19px; }
             .chat-shell {
                 display: block;
@@ -597,24 +605,14 @@ function chatTime(?string $date): string
 </head>
 <body class="<?= $room ? 'chat-has-room' : '' ?>">
 
-<header class="chat-topbar">
+<header class="chat-topbar <?= $isOwner ? 'seller-dashboard-header' : 'buyer-dashboard-header' ?>">
     <h1>💬 Mencari Makan</h1>
     <p>Chat langsung antara pembeli dan pemilik toko.</p>
-    <nav class="chat-navigation">
-        <a href="index.php">🏠 Beranda</a>
-
-        <?php if ($isOwner): ?>
-            <a href="pesanan_penjual.php">📦 Pesanan Masuk</a>
-        <?php else: ?>
-            <a href="pesanan_saya.php">📦 Pesanan Saya</a>
-        <?php endif; ?>
-
-        <a
-            class="logout-link"
-            href="logout.php"
-            onclick="return confirm('Yakin ingin keluar dari akun?');"
-        >🚪 Keluar</a>
-    </nav>
+    <?php if ($isOwner): ?>
+        <?php require __DIR__ . '/seller_navigation.php'; ?>
+    <?php else: ?>
+        <?php require __DIR__ . '/buyer_navigation.php'; ?>
+    <?php endif; ?>
 </header>
 
 <main class="chat-shell <?= $room ? 'has-room' : '' ?>">

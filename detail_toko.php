@@ -68,6 +68,7 @@ $menuMessage = $isOwner ? ($_GET['menu'] ?? '') : '';
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= e($shop['nama']) ?> - Mencari Makan</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
     <style>
         .rating-summary {
             display: flex;
@@ -109,16 +110,15 @@ $menuMessage = $isOwner ? ($_GET['menu'] ?? '') : '';
     </style>
 </head>
 <body>
-<header>
+<header class="<?= $isOwner ? 'seller-dashboard-header' : 'buyer-dashboard-header' ?>">
     <h1>🍽️ <?= e($shop['nama']) ?></h1>
-    <nav>
-        <a href="index.php">Kembali ke daftar toko</a>
-        <?php if ($isOwner): ?>
-            <a href="kelola_menu.php">Kelola Menu</a>
-        <?php endif; ?>
-        <a href="chat.php?restaurant_id=<?= (int) $shop['id'] ?>">Chat penjual</a>
-        <a href="logout.php">Keluar</a>
-    </nav>
+    <p><?= e($shop['alamat']) ?></p>
+    <?php if ($isOwner): ?>
+        <?php require __DIR__ . '/seller_navigation.php'; ?>
+    <?php else: ?>
+        <?php $buyerChatRestaurantId = (int) $shop['id']; ?>
+        <?php require __DIR__ . '/buyer_navigation.php'; ?>
+    <?php endif; ?>
 </header>
 
 <main>

@@ -160,13 +160,13 @@ try {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pesanan Saya - Mencari Makan</title>
+<link rel="stylesheet" href="dashboard.css">
 
 <style>
 *{box-sizing:border-box}
 body{margin:0;font-family:Arial,sans-serif;background:#f4f6f9;color:#202733}
-header{background:#0f766e;color:white;padding:20px 5%;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+header{background:#0f766e;color:white}
 header h1{font-size:22px;margin:0}
-header a{color:white;text-decoration:none;background:#ffffff22;padding:10px 14px;border-radius:8px}
 main{max-width:1000px;margin:24px auto;padding:0 16px}
 .order{background:white;padding:18px;border-radius:14px;margin-bottom:16px;border:1px solid #e6eaf0;box-shadow:0 4px 14px #00000008}
 .head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;border-bottom:1px solid #edf0f4;padding-bottom:12px}
@@ -188,14 +188,15 @@ button:disabled{background:#94a3b8;cursor:default}
 .empty{padding:25px;background:white;text-align:center;border-radius:12px}
 .section-title{font-size:21px;margin:26px 0 14px}
 .small{font-size:12px;color:#64748b}
-@media(max-width:600px){header{padding:16px}main{margin-top:16px}.order{padding:14px}}
+@media(max-width:600px){main{margin-top:16px}.order{padding:14px}}
 </style>
 </head>
 
 <body>
-<header>
+<header class="buyer-dashboard-header">
     <h1>🛍️ Pesanan Saya</h1>
-    <a href="index.php">Kembali ke Beranda</a>
+    <p>Lihat dan pantau pesanan makananmu.</p>
+    <?php require __DIR__ . '/buyer_navigation.php'; ?>
 </header>
 
 <main>

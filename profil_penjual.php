@@ -530,6 +530,7 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="dashboard.css">
 
     <title>Profil Penjual - Mencari Makan</title>
 
@@ -546,13 +547,13 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
 
         body {
             margin: 0;
-            background: #f4f7f5;
+            background: #f4f7f6;
             color: #24312e;
             font-family: Arial, sans-serif;
         }
 
         header {
-            background: #166534;
+            background: #0f766e;
             color: white;
             padding: 22px max(18px, calc((100% - 1100px) / 2));
         }
@@ -578,25 +579,24 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
 
         nav a {
             display: inline-block;
-            padding: 10px 12px;
+            padding: 10px 13px;
+            border: 1px solid rgba(255, 255, 255, .4);
             background: white;
-            color: #166534;
+            color: #0f766e;
             text-decoration: none;
             border-radius: 8px;
-            font-size: 13px;
+            font-size: 14px;
             font-weight: bold;
+            transition: background .2s, transform .2s;
         }
 
         nav a:hover {
-            background: #dcfce7;
-        }
-
-        nav a.active {
-            background: #bbf7d0;
+            background: #d9f4ee;
+            transform: translateY(-1px);
         }
 
         nav a.logout {
-            color: #b91c1c;
+            color: #0f766e;
         }
 
         main {
@@ -621,7 +621,7 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
             padding: 20px;
             margin-bottom: 22px;
             border-radius: 15px;
-            background: linear-gradient(120deg, #14532d, #4d7c0f);
+            background: linear-gradient(120deg, #0f766e, #115e59);
             color: white;
             overflow-wrap: anywhere;
         }
@@ -661,16 +661,16 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
             gap: 9px;
             min-width: 0;
             padding: 19px;
-            border: 1px solid #dce8df;
+            border: 1px solid #ccfbf1;
             border-radius: 12px;
-            background: #f8faf8;
-            color: #166534;
+            background: #f0fdfa;
+            color: #0f766e;
             text-decoration: none;
             transition: .2s;
         }
 
         .stat-card:hover {
-            background: #dcfce7;
+            background: #ccfbf1;
             transform: translateY(-2px);
         }
 
@@ -706,8 +706,8 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
 
         input:focus,
         textarea:focus {
-            outline: 2px solid #86efac;
-            border-color: #15803d;
+            outline: 2px solid #5eead4;
+            border-color: #0f766e;
         }
 
         textarea {
@@ -732,7 +732,7 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
             padding: 12px 16px;
             border: none;
             border-radius: 8px;
-            background: #15803d;
+            background: #0f766e;
             color: white;
             font: inherit;
             font-weight: bold;
@@ -742,11 +742,11 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
 
         .btn:hover,
         button:hover {
-            background: #166534;
+            background: #115e59;
         }
 
         .btn.secondary {
-            background: #e5eee8;
+            background: #e5eeea;
             color: #24554a;
         }
 
@@ -841,7 +841,7 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
 
 <body>
 
-<header>
+<header class="seller-dashboard-header">
     <h1>🏪 Profil Penjual</h1>
 
     <p>
@@ -849,39 +849,7 @@ $namaPemilik = $_SESSION['nama'] ?? 'Pemilik Toko';
         Kelola toko dan pantau pesanan pelangganmu.
     </p>
 
-    <nav>
-        <a href="index.php">🏠 Dashboard</a>
-
-        <a class="active" href="profil_penjual.php">
-            🏪 Profil Toko
-        </a>
-
-        <a href="kelola_menu.php">
-            🍽️ Kelola Menu
-        </a>
-
-        <a href="chat.php">
-            💬 Chat
-        </a>
-
-        <a href="pesanan_penjual.php">
-            📦 Pesanan Masuk (<?= $jumlahMenunggu ?>)
-        </a>
-
-        <a href="pesanan_penjual.php?status=diterima">
-            ✅ Pesanan Diterima (<?= $jumlahDiterima ?>)
-        </a>
-
-        <a href="pilih_peran.php">
-            🔄 Ganti Peran
-        </a>
-
-        <a class="logout"
-           href="logout.php"
-           onclick="return confirm('Yakin ingin keluar dari akun?')">
-            🚪 Keluar
-        </a>
-    </nav>
+    <?php require __DIR__ . '/seller_navigation.php'; ?>
 </header>
 
 <main>

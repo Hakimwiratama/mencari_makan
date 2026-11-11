@@ -369,6 +369,7 @@ $renderAddressCard = static function ($index, $input) use ($wilayahData, $maptil
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Beli Makanan - Mencari Makan</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
     <link rel="stylesheet"
           href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
           integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
@@ -391,13 +392,11 @@ $renderAddressCard = static function ($index, $input) use ($wilayahData, $maptil
     </style>
 </head>
 <body>
-<header>
+<header class="buyer-dashboard-header">
     <h1>🍽️ Mencari Makan</h1>
     <p>Lengkapi alamat sebelum membuat pesanan</p>
-    <nav>
-        <a href="detail_toko.php?id=<?= (int) $menu['toko_id'] ?>">Kembali ke toko</a>
-        <a href="index.php">Daftar toko</a>
-    </nav>
+    <?php $buyerChatRestaurantId = (int) $menu['toko_id']; ?>
+    <?php require __DIR__ . '/buyer_navigation.php'; ?>
 </header>
 
 <main>
